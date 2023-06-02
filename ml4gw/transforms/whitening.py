@@ -255,3 +255,6 @@ class Whitening(FittableTransform):
         # scale by sqrt(2 / sample_rate) for some inscrutable
         # signal processing reason beyond my understanding
         return X * (2 / self.sample_rate) ** 0.5
+    
+
+class LocalWhitening:
