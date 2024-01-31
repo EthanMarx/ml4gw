@@ -382,7 +382,7 @@ def test_whiten(
     # in conftest.py to stay consistent with gwpy's tests.
     # TODO: what's the exact nature of this relationship
     # and how we can we build tolerances against it?
-    fftlength = 2
+    fftlength = 1
     batch_size = 8
     num_channels = 5
     sample_rate = 16384
@@ -418,6 +418,7 @@ def test_whiten(
         window=window,
         scale=1 / (sample_rate * (window**2).sum()),
     )
+    psd = psd.sqrt()
 
     size = int(whiten_length * sample_rate)
     X = mean + std * torch.randn(batch_size, num_channels, size)

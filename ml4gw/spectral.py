@@ -90,9 +90,10 @@ def fast_spectral_density(
     scale: torch.Tensor,
     average: str = "median",
     y: Optional[torch.Tensor] = None,
+    asd: bool = True,
 ) -> torch.Tensor:
     """
-    Compute the power spectral density of a multichannel
+    Compute the amplitude spectral density of a multichannel
     timeseries or a batch of multichannel timeseries, or
     the cross power spectral density of two such timeseries.
     This implementation is non-exact for the two lowest
@@ -236,6 +237,9 @@ def fast_spectral_density(
         # if we still haven't expanded the batch dimension
         # back out, do so now
         fft = fft.reshape(batch_size, num_channels, -1)
+
+    if asd:
+        fft = fft**0.5
     return fft
 
 
@@ -246,9 +250,10 @@ def spectral_density(
     window: torch.Tensor,
     scale: torch.Tensor,
     average: str = "median",
+    asd: bool = True,
 ) -> torch.Tensor:
     """
-    Compute the power spectral density of a multichannel
+    Compute the amplitude spectral density of a multichannel
     timeseries or a batch of multichannel timeseries, or
     the cross power spectral density of two such timeseries.
     This implementation is exact for all frequency bins, but
@@ -336,7 +341,7 @@ def spectral_density(
 
 
 def truncate_inverse_power_spectrum(
-    psd: types.PSDTensor,
+    asd: types.PSDTensor,
     fduration: Union[TensorType["time"], float],
     sample_rate: float,
     highpass: Optional[float] = None,
@@ -378,12 +383,12 @@ def truncate_inverse_power_spectrum(
             tapered.
     """
 
-    num_freqs = psd.size(-1)
+    num_freqs = asd.size(-1)
     N = (num_freqs - 1) * 2
 
     # use the inverse of the ASD as the
     # impulse response function
-    inv_asd = 1 / psd**0.5
+    inv_asd = 1 / asd
 
     # zero our leading frequencies if we want the
     # filter to perform highpass filtering
@@ -416,14 +421,14 @@ def truncate_inverse_power_spectrum(
     # convert back to the frequency domain
     # to build the desired PSD
     inv_asd = torch.fft.rfft(q, n=N, norm="forward", dim=-1)
-    inv_psd = inv_asd * inv_asd.conj()
-    psd = 1 / inv_psd.abs()
-    return psd / 2
+    inv_asd = inv_asd.abs()
+    asd = 1 / inv_asd
+    return asd / (2**0.5)
 
 
-def normalize_by_psd(
+def normalize_by_asd(
     X: types.WaveformTensor,
-    psd: types.PSDTensor,
+    asd: types.PSDTensor,
     sample_rate: float,
     pad: int,
 ):
@@ -432,8 +437,8 @@ def normalize_by_psd(
     # If the ASD of any background bin hit inf, set the
     # corresponding bin to 0
     X = X - X.mean(-1, keepdims=True)
-    X_tilde = torch.fft.rfft(X.double(), norm="forward", dim=-1)
-    X_tilde = X_tilde / psd**0.5
+    X_tilde = torch.fft.rfft(X, norm="forward", dim=-1)
+    X_tilde = X_tilde / asd
     X_tilde[torch.isnan(X_tilde)] = 0
 
     # convert back to the time domain and normalize
@@ -448,7 +453,7 @@ def normalize_by_psd(
 
 def whiten(
     X: types.WaveformTensor,
-    psd: types.PSDTensor,
+    asd: types.PSDTensor,
     fduration: Union[TensorType["time"], float],
     sample_rate: float,
     highpass: Optional[float] = None,
@@ -509,23 +514,23 @@ def whiten(
         )
 
     # normalize the number of expected dimensions in the PSD
-    while psd.ndim < 3:
-        psd = psd[None]
+    while asd.ndim < 3:
+        asd = asd[None]
 
     # possibly interpolate our PSD to match the number
     # of frequency bins we expect to get from X
     num_freqs = N // 2 + 1
-    if psd.size(-1) != num_freqs:
+    if asd.size(-1) != num_freqs:
         # TODO: does there need to be any rescaling to
         # keep the integral of the PSD constant?
-        psd = torch.nn.functional.interpolate(
-            psd, size=(num_freqs,), mode="linear"
+        asd = torch.nn.functional.interpolate(
+            asd, size=(num_freqs,), mode="linear"
         )
 
     # truncate it to have the desired
     # time domain response length
-    psd = truncate_inverse_power_spectrum(
-        psd, fduration, sample_rate, highpass
+    asd = truncate_inverse_power_spectrum(
+        asd, fduration, sample_rate, highpass
     )
 
-    return normalize_by_psd(X, psd, sample_rate, pad)
+    return normalize_by_asd(X, asd, sample_rate, pad)
