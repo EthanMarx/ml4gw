@@ -74,11 +74,22 @@ class SplineInterpolate(torch.nn.Module):
     def __init__(
         self,
         x_in: Tensor,
+<<<<<<< HEAD
         y_in: Tensor = Tensor([1]),
+=======
+>>>>>>> b03bbfa (Changed spline API and added data shape check)
         kx: int = 3,
         ky: int = 3,
         sx: float = 0.001,
         sy: float = 0.001,
+<<<<<<< HEAD
+=======
+        y_in: Optional[Tensor] = Tensor(
+            [
+                1,
+            ]
+        ),
+>>>>>>> b03bbfa (Changed spline API and added data shape check)
         x_out: Optional[Tensor] = None,
         y_out: Optional[Tensor] = None,
     ):
@@ -285,7 +296,16 @@ class SplineInterpolate(torch.nn.Module):
             return torch.matmul(C, self.Bx_out.mT)
         return torch.einsum("ik,bckm,mj->bcij", self.By_out, C, self.Bx_out.mT)
 
+<<<<<<< HEAD
     def _validate_inputs(self, Z, x_out, y_out):
+=======
+    def forward(
+        self,
+        Z: Tensor,
+        x_out: Optional[Tensor] = None,
+        y_out: Optional[Tensor] = None,
+    ) -> Tensor:
+>>>>>>> b03bbfa (Changed spline API and added data shape check)
         if x_out is None and self.x_out is None:
             raise ValueError(
                 "Output x-coordinates were not specified in either object "
@@ -299,6 +319,7 @@ class SplineInterpolate(torch.nn.Module):
         if dims > 4:
             raise ValueError("Input data has more than 4 dimensions")
 
+<<<<<<< HEAD
         if len(self.y_in) > 1 and dims == 1:
             raise ValueError(
                 "An input y-coordinate array with length greater than 1 "
@@ -360,6 +381,20 @@ class SplineInterpolate(torch.nn.Module):
 
         Z, y_out = self._validate_inputs(Z, x_out, y_out)
 
+=======
+        # Expand Z to have 4 dimensions
+        while len(Z.shape) < 4:
+            Z = Z.unsqueeze(-2)
+
+        if Z.shape[-2:] != torch.Size([len(self.y_in), len(self.x_in)]):
+            raise ValueError(
+                "The spatial dimensions of the data tensor do not match "
+                "the given input dimensions. "
+                f"Expected [{len(self.y_in)}, {len(self.x_in)}], but got "
+                f"[{Z.shape[-2]}, {Z.shape[-1]}]"
+            )
+
+>>>>>>> b03bbfa (Changed spline API and added data shape check)
         if x_out is not None:
             self.Bx_out = self.bspline_basis_natural(x_out, self.kx, self.tx)
         if y_out is not None:
